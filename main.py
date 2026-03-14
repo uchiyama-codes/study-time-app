@@ -1,5 +1,6 @@
 import customtkinter as ctk
 from tkcalendar import DateEntry
+from tkcalendar import Calendar
 from tkinter import messagebox
 from tkinter import ttk
 import matplotlib.pyplot as plt
@@ -109,6 +110,17 @@ class DBManager:
         """)
         return self.cursor.fetchall()
     
+    def get_subject_ranking(self):
+
+        self.cursor.execute("""
+            SELECT subject, SUM(time) as total_time
+            FROM study
+            GROUP BY subject
+            ORDER BY total_time DESC
+            """)
+        
+        return self.cursor.fetchall()
+    
     def delete(self, record_id):
         self.cursor.execute("DELETE FROM study WHERE id = ?", (record_id,))
         self.conn.commit()
@@ -121,6 +133,12 @@ class DBManager:
             "SELECT DISTINCT date FROM study ORDER BY date"
         )
         return [row[0] for row in self.cursor.fetchall()]
+    
+    def get_study_dates(self):
+        self.cursor.execute(
+            "SELECT DISTINCT date FROM study"
+        )
+        return[row[0] for row in self.cursor.fetchall()]
 
 #   アプリ本体
 
@@ -138,6 +156,7 @@ class Study_App:
         self.create_ui()
         self.update_history()
         self.update_total_time()
+        self.color_calendar()
 
         self.app.protocol("WM_DELETE_WINDOW", self.on_close)
 
@@ -166,6 +185,25 @@ class Study_App:
 
         return max_streak
     
+    def color_calendar(self):
+
+        dates = self.db.get_study_dates()
+
+        for d in dates:
+            date_obj = datetime.strptime(d, "%Y-%m-%d")
+
+            self.date_entry.calevent_create(
+               date_obj,
+               "study",
+               "study_day"
+            )
+
+        self.date_entry.tag_config(
+            "study_day",
+            background = "green",
+            foreground="white"
+        )
+    
     def create_ui(self):
         self.subjects = self.db.get_subjects()
 
@@ -191,8 +229,13 @@ class Study_App:
         ).pack(pady=5)    
 
         #---入力---
-        ctk.CTkLabel(self.tab_record, text = "日付").pack()
-        self.date_entry=DateEntry(self.tab_record, date_pattern = "yyyy-mm-dd")
+        ctk.CTkLabel(self.tab_record, text="日付").pack()
+
+        self.date_entry = Calendar(
+            self.tab_record,
+            date_pattern="yyyy-mm-dd"
+        )
+        
         self.date_entry.pack()
 
         self.subject_box = ctk.CTkComboBox(
@@ -293,6 +336,7 @@ class Study_App:
         ctk.CTkButton(self.tab_graph, text="日別グラフ", command=self.show_daily).pack(pady=5)
         ctk.CTkButton(self.tab_graph, text = "月別グラフ", command=self.show_monthly).pack(pady=5)
         ctk.CTkButton(self.tab_graph, text="科目別グラフ",command=self.show_subject).pack(pady=5)
+        ctk.CTkButton(self.tab_graph, text="科目ランキング", command=self.show_ranking).pack(pady=5)
 
         weekly_button = ctk.CTkButton(
             self.tab_graph,
@@ -330,6 +374,7 @@ class Study_App:
         self.update_history()
         self.update_total()
         self.update_total_time()
+        self.color_calendar()
 
     #科目追加
     def add_subject(self):
@@ -513,6 +558,22 @@ class Study_App:
        subjects = [r[0] for r in rows] 
        totals = [r[1] for r in rows]
        self.plot_bar(subjects, totals, "科目別学習時間","科目")
+
+    def show_ranking(self):
+
+        rows = self.db.get_subject_ranking()
+
+        if not rows:
+            messagebox.showinfo("情報","データなし")
+            return
+        
+        text = "科目ランキング\n\n"
+
+        for i, (subject,time) in enumerate(rows, start=1):
+            text += f"{i}位{subject}:{time}分\n"
+
+        messagebox.showinfo("科目ランキング",text)
+        
 
     def plot_bar(self, labels, values, title, xlabel):
         plt.figure()

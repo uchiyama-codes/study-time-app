@@ -44,4 +44,4 @@ python main.py
 - 他の学習管理アプリとの連携機能
 
 ## スクリーンショット
-![アプリ画面](screenshot.png)
+![アプリ画面](screenshot1.png)
